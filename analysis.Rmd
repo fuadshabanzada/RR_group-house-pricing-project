@@ -1,0 +1,153 @@
+---
+title: "American House Prices Analysis"
+author: "Oybek Ismatov, Fuad Shabanov, Qadir Gasimov"
+output: html_document
+---
+
+# Introduction
+
+This project focuses on predicting American house prices using a comprehensive dataset obtained from Kaggle.
+
+# Setup Instructions
+
+1. Clone the repository:
+   ```sh
+   git clone https://github.com/fuadshabanzada/RR_group-house-pricing-project.git
+   cd RR_group-house-pricing-project
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Step 1: Load Data and Libraries
+```{r}
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(caret)
+library(randomForest)
+library(e1071)
+library(tidyr)
+library(gbm)
+library(glmnet)
+library(class)
+```
+
+# Step 2: Data Preprocessing and Exploration
+```{r}
+file_path <- "C:/Users/Oybek/OneDrive/Рабочий стол/Machine Learning/ML 2 Project Fuad-Oybek/American_Housing_Data_20231209.csv"
+housing_data <- read_csv(file_path)
+colnames(housing_data) <- make.names(colnames(housing_data))
+housing_data <- housing_data %>% drop_na()
+head(housing_data)
+summary(housing_data)
+```
+
+# Step 3: Visualization
+```{r}
+p1 <- ggplot(housing_data, aes(x = Price)) +
+  geom_histogram(binwidth = 10000, fill = "blue", color = "black") +
+  labs(title = "Distribution of House Prices", x = "Price", y = "Frequency")
+p1
+
+p2 <- ggplot(housing_data, aes(x = Living.Space, y = Price)) +
+  geom_point(color = "blue") +
+  labs(title = "Living Space vs Price", x = "Living Space", y = "Price")
+p2
+
+p3 <- ggplot(housing_data, aes(x = factor(Beds), y = Price)) +
+  geom_boxplot(fill = "lightblue") +
+  labs(title = "Price by Number of Beds", x = "Number of Beds", y = "Price")
+p3
+
+p4 <- ggplot(housing_data, aes(x = Latitude, y = Price)) +
+  geom_point(color = "blue") +
+  labs(title = "Latitude vs Price", x = "Latitude", y = "Price")
+p4
+
+p5 <- ggplot(housing_data, aes(x = Longitude, y = Price)) +
+  geom_point(color = "blue") +
+  labs(title = "Longitude vs Price", x = "Longitude", y = "Price")
+p5
+```
+
+# Step 4: Model Training and Evaluation
+```{r}
+set.seed(123)
+train_index <- createDataPartition(housing_data$Price, p = 0.8, list = FALSE)
+train_data <- housing_data[train_index, ]
+test_data <- housing_data[-train_index, ]
+
+calculate_rmse <- function(actual, predicted) {
+  sqrt(mean((actual - predicted)^2))
+}
+```
+
+# Linear Regression
+```{r}
+linear_model <- lm(Price ~ Beds + Baths + Living.Space + Zip.Code.Population + Zip.Code.Density + Median.Household.Income + Latitude + Longitude, data = train_data)
+predictions_linear <- predict(linear_model, newdata = test_data)
+rmse_linear <- calculate_rmse(test_data$Price, predictions_linear)
+cat("Linear Regression RMSE:", rmse_linear, "\n")
+```
+
+# KNN Regression
+```{r}
+numeric_cols <- sapply(train_data, is.numeric)
+train_data_scaled <- scale(train_data[, numeric_cols])
+test_data_scaled <- scale(test_data[, numeric_cols])
+knn_model <- knn(train_data_scaled, test_data_scaled, train_data$Price, k = 5)
+predictions_knn <- as.numeric(as.character(knn_model))
+rmse_knn <- calculate_rmse(test_data$Price, predictions_knn)
+cat("KNN Regression RMSE:", rmse_knn, "\n")
+```
+
+# Random Forest
+```{r}
+rf_model <- randomForest(Price ~ Beds + Baths + Living.Space + Zip.Code.Population + Zip.Code.Density + Median.Household.Income + Latitude + Longitude, data = train_data, importance = TRUE)
+predictions_rf <- predict(rf_model, newdata = test_data)
+rmse_rf <- calculate_rmse(test_data$Price, predictions_rf)
+cat("Random Forest RMSE:", rmse_rf, "\n")
+```
+
+# Gradient Boosting
+```{r}
+gbm_model <- gbm(Price ~ Beds + Baths + Living.Space + Zip.Code.Population + Zip.Code.Density + Median.Household.Income + Latitude + Longitude, data = train_data, distribution = "gaussian", n.trees = 5000, interaction.depth = 4, shrinkage = 0.01, cv.folds = 5)
+best_iter <- gbm.perf(gbm_model, method = "cv")
+predictions_gbm <- predict(gbm_model, newdata = test_data, n.trees = best_iter)
+rmse_gbm <- calculate_rmse(test_data$Price, predictions_gbm)
+cat("Gradient Boosting RMSE:", rmse_gbm, "\n")
+```
+
+# Linear Boosting (Elastic Net)
+```{r}
+x_train <- model.matrix(Price ~ Beds + Baths + Living.Space + Zip.Code.Population + Zip.Code.Density + Median.Household.Income + Latitude + Longitude, train_data)[, -1]
+y_train <- train_data$Price
+x_test <- model.matrix(Price ~ Beds + Baths + Living.Space + Zip.Code.Population + Zip.Code.Density + Median.Household.Income + Latitude + Longitude, test_data)[, -1]
+linear_boosting_model <- cv.glmnet(x_train, y_train, alpha = 0.5)
+predictions_linear_boosting <- predict(linear_boosting_model, s = "lambda.min", newx = x_test)
+rmse_linear_boosting <- calculate_rmse(test_data$Price, predictions_linear_boosting)
+cat("Linear Boosting RMSE:", rmse_linear_boosting, "\n")
+```
+
+# Step 5: Model Comparison
+```{r}
+model_performance <- data.frame(
+  Model = c("Linear Regression", "KNN", "Random Forest", "Gradient Boosting", "Linear Boosting"),
+  RMSE = c(rmse_linear, rmse_knn, rmse_rf, rmse_gbm, rmse_linear_boosting)
+)
+
+print(model_performance)
+```
+
+# Plot model performance
+```{r}
+p6 <- ggplot(model_performance, aes(x = Model, y = RMSE)) +
+  geom_bar(stat = "identity", fill = "lightblue") +
+  labs(title = "Model Performance Comparison", x = "Model", y = "RMSE")
+p6
+```
+
+# Conclusion
+
+The analysis of American house prices using various regression models provided insightful results. Among the tested models, KNN Regression achieved the lowest RMSE, indicating the best performance on the test data. Random Forest and Gradient Boosting also performed well, showing the potential of ensemble methods in predicting house prices. Linear Regression and Linear Boosting had higher RMSE values, suggesting that they might not capture the complexity of the data as effectively as the other models. Further tuning and feature engineering could enhance model performance.
