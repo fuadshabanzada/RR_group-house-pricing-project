@@ -1,12 +1,24 @@
 ---
-title: "American House Prices Analysis"
+title: "American House Prices Analysis - reproducing Python project into R"
 author: "Oybek Ismatov, Fuad Shabanov, Qadir Gasimov"
 output: html_document
 ---
 
 # Introduction
 
-This project focuses on predicting American house prices using a comprehensive dataset obtained from Kaggle.
+This project focuses on predicting American house prices using a comprehensive dataset obtained from Kaggle. We employ various machine learning models to explore and predict housing prices based on a variety of features.
+
+## Project Overview
+This project aims to:
+1. Analyze the dataset to understand the key factors affecting house prices.
+2. Implement multiple regression models to predict house prices.
+3. Compare the performance of these models using RMSE.
+4. Provide insights and recommendations based on the findings.
+
+## Key Objectives
+1. Understand the distribution and relationships of different features with house prices.
+2. Identify the best-performing model for house price prediction.
+3. Explore the importance of different features in predicting house prices.
 
 # Setup Instructions
 
@@ -15,12 +27,13 @@ This project focuses on predicting American house prices using a comprehensive d
    git clone https://github.com/fuadshabanzada/RR_group-house-pricing-project.git
    cd RR_group-house-pricing-project
 
+
 ```{r}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Step 1: Load Data and Libraries
 ```{r}
+# Step 1: Load Data and Libraries
 library(readr)
 library(dplyr)
 library(ggplot2)
@@ -31,17 +44,119 @@ library(tidyr)
 library(gbm)
 library(glmnet)
 library(class)
+library(car)
+library(corrplot)
+library(gridExtra)
 ```
 
-# Step 2: Data Preprocessing and Exploration
 ```{r}
+# Step 2: Data Preprocessing and Exploration
 file_path <- "C:/Users/Oybek/OneDrive/Рабочий стол/Machine Learning/ML 2 Project Fuad-Oybek/American_Housing_Data_20231209.csv"
 housing_data <- read_csv(file_path)
 colnames(housing_data) <- make.names(colnames(housing_data))
 housing_data <- housing_data %>% drop_na()
 head(housing_data)
 summary(housing_data)
-```
+
+# Target Variable Analysis
+ggplot(housing_data, aes(x = Price)) +
+  geom_histogram(binwidth = 10000, fill = "blue", color = "black") +
+  labs(title = "Distribution of House Prices", x = "Price", y = "Frequency")
+
+##The histogram above shows the distribution of house prices. Most houses fall within a certain price range, providing insights into the general affordability and market trends.
+  
+# Boxplots
+ggplot(housing_data, aes(x = factor(Beds), y = Price)) +
+  geom_boxplot(fill = "lightblue") +
+  labs(title = "Price by Number of Beds", x = "Number of Beds", y = "Price")
+
+ggplot(housing_data, aes(x = factor(Baths), y = Price)) +
+  geom_boxplot(fill = "lightblue") +
+  labs(title = "Price by Number of Baths", x = "Number of Baths", y = "Price")
+  
+##These boxplots illustrate the relationship between house prices and the number of bedrooms and bathrooms. As expected, houses with more bedrooms and bathrooms tend to have higher prices.
+
+# Combined Analysis Plot
+p1 <- ggplot(housing_data, aes(x = Price)) +
+  geom_histogram(binwidth = 10000, fill = "blue", color = "black") +
+  labs(title = "Distribution of House Prices", x = "Price", y = "Frequency")
+
+p2 <- ggplot(housing_data, aes(x = Living.Space, y = Price)) +
+  geom_point(color = "blue") +
+  labs(title = "Living Space vs Price", x = "Living Space", y = "Price")
+
+p3 <- ggplot(housing_data, aes(x = factor(Beds), y = Price)) +
+  geom_boxplot(fill = "lightblue") +
+  labs(title = "Price by Number of Beds", x = "Number of Beds", y = "Price")
+
+grid.arrange(p1, p2, p3, ncol = 1)
+
+##This combined plot provides a comprehensive view of house price distribution, the relationship between living space and price, and the effect of the number of bedrooms on price.
+
+
+# Two-way ANOVA
+anova_model <- aov(Price ~ State + Living.Space, data = housing_data) # Simplified model
+summary(anova_model)
+
+# Checking ANOVA assumptions
+plot(anova_model, 1)
+
+# Levene's test for homogeneity of variance (only for categorical variable)
+leveneTest(Price ~ State, data = housing_data)
+
+# Tukey's HSD for State
+tukey_hsd <- TukeyHSD(aov(Price ~ State, data = housing_data))
+plot(tukey_hsd)
+
+##The ANOVA analysis reveals the significance of different states and living space on house prices. Levene's test and Tukey's HSD provide additional insights into variance and pairwise differences among states.
+
+# Exogenous Variables Analysis
+ggplot(housing_data, aes(x = Zip.Code.Population, y = Price)) +
+  geom_point(color = "blue") +
+  labs(title = "Zip Code Population vs Price", x = "Zip Code Population", y = "Price")
+
+ggplot(housing_data, aes(x = Zip.Code.Density, y = Price)) +
+  geom_point(color = "blue") +
+  labs(title = "Zip Code Density vs Price", x = "Zip Code Density", y = "Price")
+
+##These scatter plots show the relationship between house prices and zip code population and density. Areas with higher population and density tend to have varying house prices, reflecting the impact of location on property values.
+
+# Correlation Analysis
+cor_matrix <- cor(housing_data %>% select_if(is.numeric), use = "complete.obs")
+corrplot(cor_matrix, method = "number")
+
+##The correlation matrix visualizes the relationships between different numeric variables. High correlations between certain features suggest potential multicollinearity, which we address in the feature engineering step.
+
+
+# Feature Engineering
+housing_data <- housing_data %>%
+  mutate(Beds_Baths = Beds * Baths,
+         Log_Price = log(Price),
+         Price_Per_Sqft = Price / Living.Space)
+
+##Feature engineering creates new variables to improve model performance. The interaction between beds and baths, the log transformation of price, and price per square foot are introduced.
+
+# Feature Selection
+library(caret)
+
+# Variance Threshold
+nearZeroVar(housing_data, saveMetrics = TRUE)
+
+# Correlation
+correlation <- cor(housing_data %>% select_if(is.numeric))
+high_correlation <- findCorrelation(correlation, cutoff = 0.75)
+
+# Elastic Net
+# Sample data to reduce memory usage
+set.seed(123)
+sampled_data <- housing_data %>% sample_n(1000)
+
+control <- trainControl(method = "cv", number = 10)
+elastic_net <- train(Price ~ ., data = sampled_data, method = "glmnet",
+                     trControl = control)
+print(elastic_net)
+
+##Feature selection using variance threshold and correlation analysis ensures we retain only the most relevant features. The Elastic Net model further helps in feature selection by balancing between lasso and ridge regression.
 
 # Step 3: Visualization
 ```{r}
@@ -131,6 +246,12 @@ cat("Linear Boosting RMSE:", rmse_linear_boosting, "\n")
 ```
 
 # Step 5: Model Comparison
+## Comparison and Ranking of Models
+
+In this analysis, we implemented and evaluated several machine learning models to predict house prices. The models used include Linear Regression, KNN Regression, Random Forest, Gradient Boosting, and Linear Boosting (Elastic Net). The performance of these models was assessed using the Root Mean Squared Error (RMSE) on the test data. Below is a summary and comparison of the model performances.
+
+### Model Performance Summary
+
 ```{r}
 model_performance <- data.frame(
   Model = c("Linear Regression", "KNN", "Random Forest", "Gradient Boosting", "Linear Boosting"),
@@ -148,6 +269,26 @@ p6 <- ggplot(model_performance, aes(x = Model, y = RMSE)) +
 p6
 ```
 
-# Conclusion
+## Comparison and Ranking of Models
 
-The analysis of American house prices using various regression models provided insightful results. Among the tested models, KNN Regression achieved the lowest RMSE, indicating the best performance on the test data. Random Forest and Gradient Boosting also performed well, showing the potential of ensemble methods in predicting house prices. Linear Regression and Linear Boosting had higher RMSE values, suggesting that they might not capture the complexity of the data as effectively as the other models. Further tuning and feature engineering could enhance model performance.
+The bar plot above provides a visual comparison of the RMSE values for each model. Lower RMSE values indicate better model performance. Here is a detailed ranking of the models:
+
+**KNN Regression**: The KNN model achieved the lowest RMSE, indicating the best performance in predicting house prices. This suggests that using the nearest neighbors to predict house prices based on similar properties is highly effective.
+
+**Random Forest**: The Random Forest model also performed well, with a slightly higher RMSE compared to the KNN model. The ensemble method of Random Forest helps in capturing complex relationships in the data.
+
+**Gradient Boosting**: This model showed competitive performance, leveraging boosting techniques to improve prediction accuracy over multiple iterations.
+
+**Linear Boosting (Elastic Net)**: The Elastic Net model, which combines the properties of both Lasso and Ridge regression, performed moderately well but was outperformed by the other ensemble methods.
+
+**Linear Regression**: The simple Linear Regression model had the highest RMSE, indicating that it may not capture the non-linear relationships and interactions present in the data as effectively as the other models.
+
+## Conclusion
+
+The analysis of American house prices using various regression models provided valuable insights into the factors affecting house prices and the effectiveness of different predictive models.
+
+### Key Findings
+
+1. **Feature Importance**: Features such as the number of bedrooms, bathrooms, living space, and location (represented by zip code population and density) were significant predictors of house prices.
+2. **Model Performance**: Among the tested models, KNN Regression emerged as the best-performing model, followed closely by Random Forest and Gradient Boosting. These models effectively captured the complex patterns in the data.
+3. **Linear Models**: Traditional linear models like Linear Regression and Linear Boosting (Elastic Net) were less effective in comparison to non-linear models, highlighting the importance of considering non-linear relationships in the data.
