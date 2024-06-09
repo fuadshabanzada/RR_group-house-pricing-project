@@ -45,6 +45,9 @@ install.packages("ggplot2")
 install.packages("dplyr")
 install.packages("viridis")
 
+install.packages("rmarkdown")
+install.packages("knitr")
+
 # Step 1: Load Data and Libraries
 library(readr)
 library(dplyr)

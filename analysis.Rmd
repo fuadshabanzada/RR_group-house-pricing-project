@@ -3,14 +3,14 @@ title: "American House Prices Analysis - reproducing Python project into R"
 author: "Oybek Ismatov, Fuad Shabanov, Qadir Gasimov"
 output: html_document
 ---
-
-# Introduction
-
-This project focuses on predicting American house prices using a comprehensive dataset obtained from Kaggle. We employ various machine learning models to explore and predict housing prices based on a variety of features.
+  
+  # Introduction
+  
+  This project focuses on predicting American house prices using a comprehensive dataset obtained from Kaggle. We employ various machine learning models to explore and predict housing prices based on a variety of features.
 
 ## Project Overview
 This project aims to:
-1. Analyze the dataset to understand the key factors affecting house prices.
+  1. Analyze the dataset to understand the key factors affecting house prices.
 2. Implement multiple regression models to predict house prices.
 3. Compare the performance of these models using RMSE.
 4. Provide insights and recommendations based on the findings.
@@ -23,16 +23,34 @@ This project aims to:
 # Setup Instructions
 
 1. Clone the repository:
-   ```sh
-   git clone https://github.com/fuadshabanzada/RR_group-house-pricing-project.git
-   cd RR_group-house-pricing-project
+  ```sh
+git clone https://github.com/fuadshabanzada/RR_group-house-pricing-project.git
+cd RR_group-house-pricing-project
 
 
 ```{r}
 knitr::opts_chunk$set(echo = TRUE)
+
 ```
 
 ```{r}
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+
+install.packages("caret")
+install.packages("randomForest")
+install.packages("gbm")
+install.packages("glmnet")
+install.packages("car")
+install.packages("corrplot")
+install.packages("gridExtra")
+install.packages("ggplot2")
+install.packages("dplyr")
+install.packages("viridis")
+install.packages("readr")
+
+install.packages("rmarkdown")
+install.packages("knitr")
+
 # Step 1: Load Data and Libraries
 library(readr)
 library(dplyr)
@@ -47,49 +65,123 @@ library(class)
 library(car)
 library(corrplot)
 library(gridExtra)
+library(ggplot2)
+library(viridis)
+library(e1071)
+library(reshape2)
+
 ```
 
 ```{r}
 # Step 2: Data Preprocessing and Exploration
-file_path <- "C:/Users/Oybek/OneDrive/Рабочий стол/Machine Learning/ML 2 Project Fuad-Oybek/American_Housing_Data_20231209.csv"
+file_path <- "C:/Users/Public/RR_group-house-pricing-project/American_Housing_Data_20231209.csv"
 housing_data <- read_csv(file_path)
 colnames(housing_data) <- make.names(colnames(housing_data))
 housing_data <- housing_data %>% drop_na()
 head(housing_data)
 summary(housing_data)
 
-# Target Variable Analysis
-ggplot(housing_data, aes(x = Price)) +
-  geom_histogram(binwidth = 10000, fill = "blue", color = "black") +
-  labs(title = "Distribution of House Prices", x = "Price", y = "Frequency")
+# Filter data to remove extreme outliers
+housing_data_filtered <- housing_data %>% filter(Price >= 100000, Price <= 200000)
 
-##The histogram above shows the distribution of house prices. Most houses fall within a certain price range, providing insights into the general affordability and market trends.
-  
+# Add RandomValues column (if not already present)
+housing_data_filtered$RandomValues <- runif(nrow(housing_data_filtered), min = 0, max = 1)
+
+# Calculate Mean, Median, and Mode
+price_mean <- mean(housing_data$Price)
+price_median <- median(housing_data$Price)
+price_mode <- as.numeric(names(sort(table(housing_data$Price), decreasing = TRUE)[1]))
+
+cat("Mean of Price:", price_mean, "\n")
+cat("Median of Price:", price_median, "\n")
+cat("Mode of Price:", price_mode, "\n")
+
+# Plotting filtered data
+
+p1_filtered <- ggplot(housing_data_filtered, aes(x = Price)) +
+  geom_histogram(binwidth = 1000, fill = "skyblue", color = "black") +
+  geom_vline(aes(xintercept = mean(Price)), color = "orange", linetype = "dashed", linewidth = 1) +
+  geom_vline(aes(xintercept = median(Price)), color = "green", linetype = "dotted", linewidth = 1) +
+  labs(title = "Filtered Price Distribution", x = "Price", y = "Counts") +
+  theme_minimal()
+
+# Scatter Plot
+p2_filtered <- ggplot(housing_data_filtered, aes(x = Price, y = RandomValues)) +
+  geom_point(alpha = 0.5, color = "purple") +
+  labs(title = "Filtered Price Distribution", x = "Price", y = "") +
+  theme_minimal()
+
+# Box Plot
+p3_filtered <- ggplot(housing_data_filtered, aes(y = Price)) +
+  geom_boxplot(fill = "lightcoral") +
+  labs(title = "Filtered Box Plot of Price", x = "", y = "Price") +
+  theme_minimal()
+
+# Violin Plot
+p4_filtered <- ggplot(housing_data_filtered, aes(x = "", y = Price)) +
+  geom_violin(fill = "lightblue", bw = 0.2) +
+  labs(title = "Filtered Violin Plot of Price", x = "", y = "Price") +
+  scale_fill_viridis(discrete = TRUE) +
+  theme_minimal()
+
+# Arrange filtered plots in a grid
+grid.arrange(p1_filtered, p2_filtered, p3_filtered, p4_filtered, ncol = 2)
+
+
+
+# Calculate skewness and kurtosis
+
+skewness <- skewness(housing_data$Price)
+kurtosis <- kurtosis(housing_data$Price)
+
+cat("Skewness of Price:", skewness, "\n")
+cat("Kurtosis of Price:", kurtosis, "\n")
+
+
 # Boxplots
 ggplot(housing_data, aes(x = factor(Beds), y = Price)) +
   geom_boxplot(fill = "lightblue") +
   labs(title = "Price by Number of Beds", x = "Number of Beds", y = "Price")
 
+
 ggplot(housing_data, aes(x = factor(Baths), y = Price)) +
   geom_boxplot(fill = "lightblue") +
   labs(title = "Price by Number of Baths", x = "Number of Baths", y = "Price")
-  
-##These boxplots illustrate the relationship between house prices and the number of bedrooms and bathrooms. As expected, houses with more bedrooms and bathrooms tend to have higher prices.
 
-# Combined Analysis Plot
-p1 <- ggplot(housing_data, aes(x = Price)) +
-  geom_histogram(binwidth = 10000, fill = "blue", color = "black") +
-  labs(title = "Distribution of House Prices", x = "Price", y = "Frequency")
 
-p2 <- ggplot(housing_data, aes(x = Living.Space, y = Price)) +
-  geom_point(color = "blue") +
-  labs(title = "Living Space vs Price", x = "Living Space", y = "Price")
 
-p3 <- ggplot(housing_data, aes(x = factor(Beds), y = Price)) +
-  geom_boxplot(fill = "lightblue") +
-  labs(title = "Price by Number of Beds", x = "Number of Beds", y = "Price")
+# Standardize the Price by dividing by 1000
+housing_data_standardized <- housing_data_filtered %>%
+  mutate(Price_Standardized = Price / 1000)
 
-grid.arrange(p1, p2, p3, ncol = 1)
+# Use standardized prices in the plots
+p1_standardized <- ggplot(housing_data_standardized, aes(x = Price_Standardized)) +
+  geom_histogram(binwidth = 1, fill = "skyblue", color = "black") +
+  geom_vline(aes(xintercept = mean(Price_Standardized)), color = "orange", linetype = "dashed", linewidth = 1) +
+  geom_vline(aes(xintercept = median(Price_Standardized)), color = "green", linetype = "dotted", linewidth = 1) +
+  labs(title = "Standardized Price Distribution", x = "Price (in thousands)", y = "Counts") +
+  theme_minimal()
+
+p2_standardized <- ggplot(housing_data_standardized, aes(x = Price_Standardized, y = RandomValues)) +
+  geom_point(alpha = 0.5, color = "purple") +
+  labs(title = "Standardized Price Distribution", x = "Price (in thousands)", y = "") +
+  theme_minimal()
+
+p3_standardized <- ggplot(housing_data_standardized, aes(y = Price_Standardized)) +
+  geom_boxplot(fill = "lightcoral") +
+  labs(title = "Standardized Box Plot of Price", x = "", y = "Price (in thousands)") +
+  theme_minimal()
+
+p4_standardized <- ggplot(housing_data_standardized, aes(x = "", y = Price_Standardized)) +
+  geom_violin(fill = "lightblue", bw = 0.2) +
+  labs(title = "Standardized Violin Plot of Price", x = "", y = "Price (in thousands)") +
+  scale_fill_viridis(discrete = TRUE) +
+  theme_minimal()
+
+# Arrange standardized plots in a grid
+grid.arrange(p1_standardized, p2_standardized, p3_standardized, p4_standardized, ncol = 2)
+
+
 
 ##This combined plot provides a comprehensive view of house price distribution, the relationship between living space and price, and the effect of the number of bedrooms on price.
 
@@ -187,93 +279,118 @@ p5
 ```
 
 # Step 4: Model Training and Evaluation
-```{r}
+# Model training and evaluation using standardized prices
 set.seed(123)
-train_index <- createDataPartition(housing_data$Price, p = 0.8, list = FALSE)
-train_data <- housing_data[train_index, ]
-test_data <- housing_data[-train_index, ]
+train_index <- createDataPartition(housing_data_standardized$Price_Standardized, p = 0.8, list = FALSE)
+train_data <- housing_data_standardized[train_index, ]
+test_data <- housing_data_standardized[-train_index, ]
 
 calculate_rmse <- function(actual, predicted) {
   sqrt(mean((actual - predicted)^2))
 }
-```
+
+calculate_r2 <- function(actual, predicted) {
+  1 - (sum((actual - predicted)^2) / sum((actual - mean(actual))^2))
+}
+
+
+####
+
 
 # Linear Regression
-```{r}
-linear_model <- lm(Price ~ Beds + Baths + Living.Space + Zip.Code.Population + Zip.Code.Density + Median.Household.Income + Latitude + Longitude, data = train_data)
+linear_model <- lm(Price_Standardized ~ Beds + Baths + Living.Space + Zip.Code.Population + Zip.Code.Density + Median.Household.Income + Latitude + Longitude, data = train_data)
 predictions_linear <- predict(linear_model, newdata = test_data)
-rmse_linear <- calculate_rmse(test_data$Price, predictions_linear)
-cat("Linear Regression RMSE:", rmse_linear, "\n")
-```
+rmse_linear <- calculate_rmse(test_data$Price_Standardized, predictions_linear)
+r2_linear <- calculate_r2(test_data$Price_Standardized, predictions_linear)
+cat("Linear Regression RMSE (Standardized):", rmse_linear, "\n")
 
 # KNN Regression
-```{r}
 numeric_cols <- sapply(train_data, is.numeric)
 train_data_scaled <- scale(train_data[, numeric_cols])
 test_data_scaled <- scale(test_data[, numeric_cols])
-knn_model <- knn(train_data_scaled, test_data_scaled, train_data$Price, k = 5)
+knn_model <- knn(train_data_scaled, test_data_scaled, train_data$Price_Standardized, k = 5)
 predictions_knn <- as.numeric(as.character(knn_model))
-rmse_knn <- calculate_rmse(test_data$Price, predictions_knn)
-cat("KNN Regression RMSE:", rmse_knn, "\n")
-```
+rmse_knn <- calculate_rmse(test_data$Price_Standardized, predictions_knn)
+r2_knn <- calculate_r2(test_data$Price_Standardized, predictions_knn)
+cat("KNN Regression RMSE (Standardized):", rmse_knn, "\n")
 
 # Random Forest
-```{r}
-rf_model <- randomForest(Price ~ Beds + Baths + Living.Space + Zip.Code.Population + Zip.Code.Density + Median.Household.Income + Latitude + Longitude, data = train_data, importance = TRUE)
+rf_model <- randomForest(Price_Standardized ~ Beds + Baths + Living.Space + Zip.Code.Population + Zip.Code.Density + Median.Household.Income + Latitude + Longitude, data = train_data, importance = TRUE)
 predictions_rf <- predict(rf_model, newdata = test_data)
-rmse_rf <- calculate_rmse(test_data$Price, predictions_rf)
-cat("Random Forest RMSE:", rmse_rf, "\n")
-```
+rmse_rf <- calculate_rmse(test_data$Price_Standardized, predictions_rf)
+r2_rf <- calculate_r2(test_data$Price_Standardized, predictions_rf)
+cat("Random Forest RMSE (Standardized):", rmse_rf, "\n")
 
 # Gradient Boosting
-```{r}
-gbm_model <- gbm(Price ~ Beds + Baths + Living.Space + Zip.Code.Population + Zip.Code.Density + Median.Household.Income + Latitude + Longitude, data = train_data, distribution = "gaussian", n.trees = 5000, interaction.depth = 4, shrinkage = 0.01, cv.folds = 5)
+gbm_model <- gbm(Price_Standardized ~ Beds + Baths + Living.Space + Zip.Code.Population + Zip.Code.Density + Median.Household.Income + Latitude + Longitude, data = train_data, distribution = "gaussian", n.trees = 5000, interaction.depth = 4, shrinkage = 0.01, cv.folds = 5)
 best_iter <- gbm.perf(gbm_model, method = "cv")
 predictions_gbm <- predict(gbm_model, newdata = test_data, n.trees = best_iter)
-rmse_gbm <- calculate_rmse(test_data$Price, predictions_gbm)
-cat("Gradient Boosting RMSE:", rmse_gbm, "\n")
-```
+rmse_gbm <- calculate_rmse(test_data$Price_Standardized, predictions_gbm)
+r2_gbm <- calculate_r2(test_data$Price_Standardized, predictions_gbm)
+cat("Gradient Boosting RMSE (Standardized):", rmse_gbm, "\n")
 
 # Linear Boosting (Elastic Net)
-```{r}
-x_train <- model.matrix(Price ~ Beds + Baths + Living.Space + Zip.Code.Population + Zip.Code.Density + Median.Household.Income + Latitude + Longitude, train_data)[, -1]
-y_train <- train_data$Price
-x_test <- model.matrix(Price ~ Beds + Baths + Living.Space + Zip.Code.Population + Zip.Code.Density + Median.Household.Income + Latitude + Longitude, test_data)[, -1]
+x_train <- model.matrix(Price_Standardized ~ Beds + Baths + Living.Space + Zip.Code.Population + Zip.Code.Density + Median.Household.Income + Latitude + Longitude, train_data)[, -1]
+y_train <- train_data$Price_Standardized
+x_test <- model.matrix(Price_Standardized ~ Beds + Baths + Living.Space + Zip.Code.Population + Zip.Code.Density + Median.Household.Income + Latitude + Longitude, test_data)[, -1]
 linear_boosting_model <- cv.glmnet(x_train, y_train, alpha = 0.5)
 predictions_linear_boosting <- predict(linear_boosting_model, s = "lambda.min", newx = x_test)
-rmse_linear_boosting <- calculate_rmse(test_data$Price, predictions_linear_boosting)
-cat("Linear Boosting RMSE:", rmse_linear_boosting, "\n")
+rmse_linear_boosting <- calculate_rmse(test_data$Price_Standardized, predictions_linear_boosting)
+r2_linear_boosting <- calculate_r2(test_data$Price_Standardized, predictions_linear_boosting)
+cat("Linear Boosting RMSE (Standardized):", rmse_linear_boosting, "\n")
+
+
 ```
-
 # Step 5: Model Comparison
-## Comparison and Ranking of Models
 
-In this analysis, we implemented and evaluated several machine learning models to predict house prices. The models used include Linear Regression, KNN Regression, Random Forest, Gradient Boosting, and Linear Boosting (Elastic Net). The performance of these models was assessed using the Root Mean Squared Error (RMSE) on the test data. Below is a summary and comparison of the model performances.
+# Load Python results
+python_results <- read.csv("C:/Users/Public/RR_group-house-pricing-project/python_model_results.csv")
 
-### Model Performance Summary
-
-```{r}
-model_performance <- data.frame(
+# R results summary
+r_model_performance <- data.frame(
   Model = c("Linear Regression", "KNN", "Random Forest", "Gradient Boosting", "Linear Boosting"),
-  RMSE = c(rmse_linear, rmse_knn, rmse_rf, rmse_gbm, rmse_linear_boosting)
+  RMSE = c(rmse_linear, rmse_knn, rmse_rf, rmse_gbm, rmse_linear_boosting),
+  R_squared = c(r2_linear, r2_knn, r2_rf, r2_gbm, r2_linear_boosting)
 )
 
-print(model_performance)
-```
+# Create a data frame for R results
+r_results <- data.frame(Model = r_model_performance$Model, MSE = r_model_performance$RMSE^2, R_squared = r_model_performance$R_squared)
 
-# Plot model performance
-```{r}
-p6 <- ggplot(model_performance, aes(x = Model, y = RMSE)) +
-  geom_bar(stat = "identity", fill = "lightblue") +
-  labs(title = "Model Performance Comparison", x = "Model", y = "RMSE")
-p6
-```
+# Combine Python and R results
+combined_results <- bind_rows(
+  python_results %>% mutate(Source = "Python"),
+  r_results %>% mutate(Source = "R")
+)
+
+print(combined_results)
+
+# Melt the data for easier plotting
+combined_melted <- melt(combined_results, id.vars = c("Model", "Source"))
+
+# Plot combined model performance for MSE
+p_mse <- ggplot(combined_melted %>% filter(variable == "MSE"), aes(x = Model, y = value, fill = Source)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8), color = "black") +
+  labs(title = "Model Comparison: Python vs R (MSE)", x = "Model", y = "Mean Squared Error") +
+  theme_minimal() +
+  scale_fill_manual(values = c("R" = "lightblue", "Python" = "lightgreen"))
+
+print(p_mse)
+
+# Plot combined model performance for R-squared
+p_r2 <- ggplot(combined_melted %>% filter(variable == "R_squared"), aes(x = Model, y = value, fill = Source)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8), color = "black") +
+  labs(title = "Model Comparison: Python vs R (R-squared)", x = "Model", y = "R-squared") +
+  theme_minimal() +
+  scale_fill_manual(values = c("R" = "lightblue", "Python" = "lightgreen"))
+
+print(p_r2)
+
 
 ## Comparison and Ranking of Models
 
 The bar plot above provides a visual comparison of the RMSE values for each model. Lower RMSE values indicate better model performance. Here is a detailed ranking of the models:
-
-**KNN Regression**: The KNN model achieved the lowest RMSE, indicating the best performance in predicting house prices. This suggests that using the nearest neighbors to predict house prices based on similar properties is highly effective.
+  
+  **KNN Regression**: The KNN model achieved the lowest RMSE, indicating the best performance in predicting house prices. This suggests that using the nearest neighbors to predict house prices based on similar properties is highly effective.
 
 **Random Forest**: The Random Forest model also performed well, with a slightly higher RMSE compared to the KNN model. The ensemble method of Random Forest helps in capturing complex relationships in the data.
 
